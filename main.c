@@ -325,7 +325,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     	 {
     	   		GPIO_IF_LedOn(MCU_GREEN_LED_GPIO);
     	  }
-    	 else if (((char *)payload)=='0')
+    	 else if (((char *)payload)[]=='0')
     	 {
     	   		GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
     	 }
