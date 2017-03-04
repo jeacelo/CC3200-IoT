@@ -92,6 +92,8 @@
 #include <WS2812/SPI_uDMA_drv.h>
 #include <WS2812/WS2812_drv.h>
 
+//#define STATION_MODE 1
+
 #define APPLICATION_VERSION 	"1.1.1"
 
 /*Operate Lib in MQTT 3.1 mode.*/
@@ -104,7 +106,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.2"
+#define SERVER_ADDRESS          "192.168.1.107"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
