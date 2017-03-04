@@ -301,36 +301,33 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
 
     if(strncmp(output_str,TOPIC1, top_len) == 0)
     {
-    	if (((char *)payload)[0]=='1')
+    	if (json_scanf((const char *)payload, pay_len, "{ Led: %B }", &booleano)>0)
     	{
-    		GPIO_IF_LedOn(MCU_RED_LED_GPIO);
-    	}
-    	else if (((char *)payload)[0]=='0')
-    	{
-    		GPIO_IF_LedOff(MCU_RED_LED_GPIO);
+    		if (booleano)
+    			GPIO_IF_LedOn(MCU_RED_LED_GPIO);
+    		else
+    			GPIO_IF_LedOff(MCU_RED_LED_GPIO);
     	}
     }
     else if(strncmp(output_str,TOPIC2, top_len) == 0)
     {
-    	if (((char *)payload)[0]=='1')
-    	  {
-    	  		GPIO_IF_LedOn(MCU_ORANGE_LED_GPIO);
-    	  }
-    	  else if (((char *)payload)[0]=='0')
-    	  {
-    	  		GPIO_IF_LedOff(MCU_ORANGE_LED_GPIO);
-    	  }
+    	if (json_scanf((const char *)payload, pay_len, "{ Led: %B }", &booleano)>0)
+    	{
+    		if (booleano)
+    			GPIO_IF_LedOn(MCU_ORANGE_LED_GPIO);
+    		else
+    			GPIO_IF_LedOff(MCU_ORANGE_LED_GPIO);
+    	}
     }
     else if(strncmp(output_str,TOPIC3, top_len) == 0)
     {
-    	 if (((char *)payload)[0]=='1')
-    	 {
-    	   		GPIO_IF_LedOn(MCU_GREEN_LED_GPIO);
-    	  }
-    	 else if (((char *)payload)[0]=='0')
-    	 {
-    	   		GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
-    	 }
+    	if (json_scanf((const char *)payload, pay_len, "{ Led: %B }", &booleano)>0)
+    	{
+    		if (booleano)
+    			GPIO_IF_LedOn(MCU_GREEN_LED_GPIO);
+    		else
+    			GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
+    	}
     }
     else if (strncmp(output_str,TOPIC_JSON, top_len) == 0)
 	{
