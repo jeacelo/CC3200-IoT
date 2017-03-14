@@ -92,6 +92,8 @@
 #include <WS2812/SPI_uDMA_drv.h>
 #include <WS2812/WS2812_drv.h>
 
+//#define STATION_MODE 1
+
 #define APPLICATION_VERSION 	"1.1.1"
 
 /*Operate Lib in MQTT 3.1 mode.*/
@@ -104,7 +106,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.2"
+#define SERVER_ADDRESS          "192.168.1.107"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -131,13 +133,14 @@
 #define PUB_TOPIC_JSON       "/cc3200/ButtonPressEvtJSON"
 
 /*Defining Number of topics*/
-#define TOPIC_COUNT             4
+#define TOPIC_COUNT             2
 
 /*Defining Subscription Topic Values*/
-#define TOPIC1                  "/cc3200/ToggleLEDCmdL1"
-#define TOPIC2                  "/cc3200/ToggleLEDCmdL2"
-#define TOPIC3                  "/cc3200/ToggleLEDCmdL3"
+//#define TOPIC1                  "/cc3200/ToggleLEDCmdL1"
+//#define TOPIC2                  "/cc3200/ToggleLEDCmdL2"
+//#define TOPIC3                  "/cc3200/ToggleLEDCmdL3"
 #define TOPIC_JSON              "/cc3200/ToggleLEDCmdJSON"
+#define TOPIC_LEDS				"/cc3200/LedsArray"
 
 /*Defining QOS levels*/
 #define QOS0                    0
@@ -148,7 +151,7 @@
 #define OSI_STACK_SIZE          2048
 #define UART_PRINT              Report
 
-
+#define NUM_LEDS				22
 
 typedef struct connection_config{
     SlMqttClientCtxCfg_t broker_config;
@@ -241,8 +244,8 @@ connect_config usr_connect_config[] =
         KEEP_ALIVE_TIMER,
         {Mqtt_Recv, sl_MqttEvt, sl_MqttDisconnect},
         TOPIC_COUNT,
-        {TOPIC1, TOPIC2, TOPIC3,TOPIC_JSON}, /* Tantos como TOPIC_COUNT */
-        {QOS2, QOS2, QOS2,QOS2}, /* Tantos como topics */
+        {TOPIC_JSON, TOPIC_LEDS}, /* Tantos como TOPIC_COUNT */
+        {QOS2, QOS2}, /* Tantos como topics */
         {WILL_TOPIC,WILL_MSG,WILL_QOS,WILL_RETAIN},
         false
     }
@@ -265,6 +268,10 @@ const unsigned char *data_sw2={"Push button sw2 is pressed on CC32XX device"};
 const unsigned char *data_sw3={"Push button sw3 is pressed on CC32XX device"};
 
 void *app_hndl = (void*)usr_connect_config;
+
+static uint8_t pui8Colors[NUM_LEDS][3];
+static uint8_t pui8SPIOut[NUM_LEDS][WS2812_SPI_BYTE_PER_CLR *
+	                                  WS2812_SPI_BIT_WIDTH];
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
 //*****************************************************************************
@@ -295,42 +302,10 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     memset(output_str,'\0',top_len+1);
     strncpy(output_str, (char*)topstr, top_len);
     output_str[top_len]='\0';
+    int red, green, blue;
+    int index;
 
-
-    if(strncmp(output_str,TOPIC1, top_len) == 0)
-    {
-    	if (((char *)payload)[0]=='1')
-    	{
-    		GPIO_IF_LedOn(MCU_RED_LED_GPIO);
-    	}
-    	else if (((char *)payload)[0]=='0')
-    	{
-    		GPIO_IF_LedOff(MCU_RED_LED_GPIO);
-    	}
-    }
-    else if(strncmp(output_str,TOPIC2, top_len) == 0)
-    {
-    	if (((char *)payload)[0]=='1')
-    	  {
-    	  		GPIO_IF_LedOn(MCU_ORANGE_LED_GPIO);
-    	  }
-    	  else if (((char *)payload)[0]=='0')
-    	  {
-    	  		GPIO_IF_LedOff(MCU_ORANGE_LED_GPIO);
-    	  }
-    }
-    else if(strncmp(output_str,TOPIC3, top_len) == 0)
-    {
-    	 if (((char *)payload)[0]=='1')
-    	 {
-    	   		GPIO_IF_LedOn(MCU_GREEN_LED_GPIO);
-    	  }
-    	 else if (((char *)payload)[0]=='0')
-    	 {
-    	   		GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
-    	 }
-    }
-    else if (strncmp(output_str,TOPIC_JSON, top_len) == 0)
+    if (strncmp(output_str,TOPIC_JSON, top_len) == 0)
 	{
     	//JMCG: Ejemplo de parseo JSON....
     	if (json_scanf((const char *)payload, pay_len, "{ redLed: %B }", &booleano)>0)
@@ -351,7 +326,30 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     			GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
 
     	}
+    	if (json_scanf((const char *)payload, pay_len, "{ orangeLed: %B }", &booleano)>0)
+    	{
+
+    		if (booleano)
+    			GPIO_IF_LedOn(MCU_ORANGE_LED_GPIO);
+    		else
+    			GPIO_IF_LedOff(MCU_ORANGE_LED_GPIO);
+
+    	}
 	}
+    else if(strncmp(output_str,TOPIC_LEDS, top_len) == 0)
+    {
+    	if (json_scanf((const char *)payload, pay_len, "{ LED:%d R:%d G:%d B:%d }", &index, &red, &green, &blue)>0)
+    	{
+    		waitSPITramsfer();
+    		osi_Sleep(100);
+    		pui8Colors[index][0]=green;
+    		pui8Colors[index][1]=red;
+    		pui8Colors[index][2]=blue;
+    		WSGRBtoSPI(pui8SPIOut[index], pui8Colors[index][0],
+    				pui8Colors[index][1], pui8Colors[index][2]);
+    		InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
+    	}
+    }
 
     UART_PRINT("\n\rPublish Message Received");
     UART_PRINT("\n\rTopic: ");
@@ -682,7 +680,7 @@ DisplayBanner(char * AppName)
 
 
 // Esta tarea Utiliza la biblioteca de los LEDs para mostrar un patron de colorines que va rotando...
-#define NUM_LEDS 48
+#define NUM_LEDS 22
 void ColorLedTask(void *pvParameters)
 {
 
@@ -712,9 +710,9 @@ void ColorLedTask(void *pvParameters)
 	    //
 	    InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
 
-	while(1)
-	{
-		int i,j;
+	//while(1)
+	//{
+		/*int i,j;
 
 		for (j=0;j<NUM_LEDS;j++)
 		{
@@ -743,10 +741,16 @@ void ColorLedTask(void *pvParameters)
 				}
 
 			}
+			WSGRBtoSPI(pui8SPIOut[j], pui8Colors[j][0],
+										pui8Colors[j][1], pui8Colors[j][2]);
+			pui8Colors[7][0]=60;
+			pui8Colors[7][1]=236;
+			pui8Colors[7][2]=232;
+			WSGRBtoSPI(pui8SPIOut[7], pui8Colors[7][0],
+													pui8Colors[7][1], pui8Colors[7][2]);
 			InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
-		}
-
-	}
+		}*/
+	//}
 }
 
 
@@ -1371,9 +1375,9 @@ end:
 
     //Antes de salir, crea la tarea que genera el patron
     // Podría hacerlo en otro sitio, por ejemplo un comando.
-	lRetVal = osi_TaskCreate(ColorLedTask,
-	                        (const signed char *)"ColorLeds",
-	                        OSI_STACK_SIZE, NULL, 2, NULL );
+	//lRetVal = osi_TaskCreate(ColorLedTask,
+	//                        (const signed char *)"ColorLeds",
+	//                        OSI_STACK_SIZE, NULL, 2, NULL );
 
 	if(lRetVal < 0)
 	{
@@ -1430,8 +1434,12 @@ void main()
     //
     InitTerm();
 
+    InitRGBSPI();
+    WSArrayInit(pui8SPIOut, sizeof(pui8SPIOut));
+    InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
+
     //
-    // Start the SimpleLink Host
+	// Start the SimpleLink Host
     //
     lRetVal = VStartSimpleLinkSpawnTask(SPAWN_TASK_PRIORITY);
     if(lRetVal < 0)
