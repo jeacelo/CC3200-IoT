@@ -1392,13 +1392,16 @@ end:
     //Se tendria que lanzar una tarea adicional
     OsiTaskHandle handle=NULL;
     osi_TaskDelete(&handle);
+
+#endif
 }
 
 
 
-#endif
+
 
 //}
+
 //*****************************************************************************
 //
 //! Main 
