@@ -289,6 +289,11 @@ signed char accX = 0;
 signed char accY = 0;
 signed char accZ = 0;
 
+int ref_temp, ref_acc;
+
+int control = 1;
+int control_2 = 1;
+
 OsiTaskHandle* TemppTaskHandle, AccpTaskHandle;
 
 //*****************************************************************************
@@ -315,7 +320,8 @@ static void
 Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload,
                        long pay_len, bool dup,unsigned char qos, bool retain)
 {
-	bool booleano, booleano_2;
+    int aux;
+	bool booleano;
     char *output_str=(char*)pvPortMalloc(top_len+1);
     memset(output_str,'\0',top_len+1);
     strncpy(output_str, (char*)topstr, top_len);
@@ -371,41 +377,46 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     }
     else if(strncmp(output_str,TOPIC_SENSOR, top_len) == 0)
     {
-    	if (json_scanf((const char *)payload, pay_len, "{ TEMP: %B ACC: %B }", &booleano, &booleano_2)>0)
-    	{
-    		if (booleano)
-    		{
-    			lRetVal = osi_TaskCreate(TempTask,
-    			    		(const signed char *)"TempTask",
-    						OSI_STACK_SIZE, NULL, 2, NULL );
+        if (json_scanf((const char *)payload, pay_len, "{ TEMP: %d }", &aux)>0)
+        {
+            if (aux>0)
+            {
+                ref_temp = aux;
+                if (control)
+                {
+                    control = 0;
+                    lRetVal = osi_TaskCreate(TempTask,
+                            (const signed char *)"TempTask",
+                            OSI_STACK_SIZE, &ref_temp, 2, NULL );
 
-    			    if(lRetVal < 0)
-    			    {
-    			    	ERR_PRINT(lRetVal);
-    			    	LOOP_FOREVER();
-    			    }
-    		}
-    		/*else
-    		{
-    			osi_TaskDelete(TemppTaskHandle);
-    		}*/
-    		if (booleano_2)
-    		{
-    			lRetVal = osi_TaskCreate(AccTask,
-    					(const signed char *)"AccTask",
-						OSI_STACK_SIZE, NULL, 2, NULL );
+                    if(lRetVal < 0)
+                    {
+                        ERR_PRINT(lRetVal);
+                        LOOP_FOREVER();
+                    }
+                }
+            }
+        }
+        if (json_scanf((const char *)payload, pay_len, "{ ACC: %d }", &aux)>0)
+        {
+            if (aux>0)
+            {
+                ref_acc = aux;
+                if (control_2)
+                {
+                    control_2 = 0;
+                    lRetVal = osi_TaskCreate(AccTask,
+                            (const signed char *)"AccTask",
+                            OSI_STACK_SIZE, &ref_acc, 2, NULL );
 
-    			if(lRetVal < 0)
-    			{
-    				ERR_PRINT(lRetVal);
-    				LOOP_FOREVER();
-    			}
-    		}
-    		/*else
-    		{
-    			osi_TaskDelete(AccpTaskHandle);
-    		}*/
-    	}
+                    if(lRetVal < 0)
+                    {
+                        ERR_PRINT(lRetVal);
+                        LOOP_FOREVER();
+                    }
+                }
+            }
+        }
     }
 
     UART_PRINT("\n\rPublish Message Received");
@@ -1463,7 +1474,7 @@ void ConnectWiFI(void *pvParameters)
 
         	//Reinicio out1, de lo contrario se van acumulando los printfs
 
-        	json_printf(&out1,"{ AccX : %d AccY : %d AccZ : %d}", (int)accX, (int)accY, (int)accZ);
+        	json_printf(&out1,"{ AccX : %d, AccY: %d, AccZ : %d }", (int)accX, (int)accY, (int)accZ);
 
 
         	sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
@@ -1524,25 +1535,29 @@ end:
 
 void TempTask(void *pvParameters)
 {
+	int refresh;
 	while(1){
+		refresh = *((int *)pvParameters);
 		osi_messages var = READ_TEMP;
 		//
 		// write message indicating exit from sending loop
 		//
 		osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-		osi_Sleep(1000);
+		osi_Sleep(refresh);
 	}
 }
 
 void AccTask(void *pvParameters)
 {
+	int refresh;
 	while(1){
+		refresh = *((int *)pvParameters);
 		osi_messages var = READ_ACC;
 		//
 		// write message indicating exit from sending loop
 		//
 		osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-		osi_Sleep(5000);
+		osi_Sleep(refresh);
 	}
 }
 
