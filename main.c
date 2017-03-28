@@ -107,7 +107,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.107"
+#define SERVER_ADDRESS          "192.168.1.22"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -289,7 +289,7 @@ signed char accX = 0;
 signed char accY = 0;
 signed char accZ = 0;
 
-OsiTaskHandle* pTempTaskHandle, pAccTaskHandle;
+OsiTaskHandle* TemppTaskHandle, AccpTaskHandle;
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -385,10 +385,10 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     			    	LOOP_FOREVER();
     			    }
     		}
-    		else
+    		/*else
     		{
-    			osi_TaskDelete(pTempTaskHandle);
-    		}
+    			osi_TaskDelete(TemppTaskHandle);
+    		}*/
     		if (booleano_2)
     		{
     			lRetVal = osi_TaskCreate(AccTask,
@@ -401,10 +401,10 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     				LOOP_FOREVER();
     			}
     		}
-    		else
+    		/*else
     		{
-    			osi_TaskDelete(pAccTaskHandle);
-    		}
+    			osi_TaskDelete(AccpTaskHandle);
+    		}*/
     	}
     }
 
@@ -1446,7 +1446,7 @@ void ConnectWiFI(void *pvParameters)
 
         	//Reinicio out1, de lo contrario se van acumulando los printfs
 
-        	json_printf(&out1,"{ Temperature : %f}",(int)(roundf(temp)));
+        	json_printf(&out1,"{ Temperature : %f }",roundf(temp));
 
 
         	sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
@@ -1530,7 +1530,7 @@ void TempTask(void *pvParameters)
 		// write message indicating exit from sending loop
 		//
 		osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-		osi_Sleep(5000);
+		osi_Sleep(1000);
 	}
 }
 
@@ -1614,16 +1614,6 @@ void main()
 
     /*lRetVal = osi_TaskCreate(TempTask,
     		(const signed char *)"TempTask",
-			OSI_STACK_SIZE, NULL, 2, NULL );
-
-    if(lRetVal < 0)
-    {
-    	ERR_PRINT(lRetVal);
-    	LOOP_FOREVER();
-    }
-
-    lRetVal = osi_TaskCreate(AccTask,
-    		(const signed char *)"AccTask",
 			OSI_STACK_SIZE, NULL, 2, NULL );
 
     if(lRetVal < 0)
