@@ -107,7 +107,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.22"
+#define SERVER_ADDRESS          "192.168.1.107"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -392,14 +392,14 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     }
                 }
             }
-	    else
-	    {
-		if (TemppTaskHandle != NULL)
-		{
-	    		osi_TaskDelete(TemppTaskHandle);
-			//TemppTaskHandle = NULL;
-		}
-	    }
+            else if (aux==0)
+            {
+                if (TemppTaskHandle != NULL)
+                {
+                    osi_TaskDelete(&TemppTaskHandle);
+                    TemppTaskHandle = NULL;
+                }
+            }
         }
         if (json_scanf((const char *)payload, pay_len, "{ ACC: %d }", &aux)>0)
         {
@@ -419,14 +419,14 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     }
                 }
             }
-	    else
-	    {
-		if (AccpTaskHandle != NULL)
-		{
-	    		osi_TaskDelete(AccpTaskHandle);
-			//AccpTaskHandle = NULL;
-		}
-	    }
+            else if (aux==0)
+            {
+                if (AccpTaskHandle != NULL)
+                {
+                    osi_TaskDelete(&AccpTaskHandle);
+                    AccpTaskHandle = NULL;
+                }
+            }
         }
     }
 
