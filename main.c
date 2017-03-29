@@ -291,10 +291,7 @@ signed char accZ = 0;
 
 int ref_temp, ref_acc;
 
-int control = 1;
-int control_2 = 1;
-
-OsiTaskHandle* TemppTaskHandle, AccpTaskHandle;
+OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL;
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -382,12 +379,11 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
             if (aux>0)
             {
                 ref_temp = aux;
-                if (control)
+                if (TemppTaskHandle == NULL)
                 {
-                    control = 0;
                     lRetVal = osi_TaskCreate(TempTask,
                             (const signed char *)"TempTask",
-                            OSI_STACK_SIZE, &ref_temp, 2, NULL );
+                            OSI_STACK_SIZE, &ref_temp, 2, &TemppTaskHandle );
 
                     if(lRetVal < 0)
                     {
@@ -396,18 +392,25 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     }
                 }
             }
+	    else
+	    {
+		if (TemppTaskHandle != NULL)
+		{
+	    		osi_TaskDelete(TemppTaskHandle);
+			//TemppTaskHandle = NULL;
+		}
+	    }
         }
         if (json_scanf((const char *)payload, pay_len, "{ ACC: %d }", &aux)>0)
         {
             if (aux>0)
             {
                 ref_acc = aux;
-                if (control_2)
+                if (AccpTaskHandle == NULL)
                 {
-                    control_2 = 0;
                     lRetVal = osi_TaskCreate(AccTask,
                             (const signed char *)"AccTask",
-                            OSI_STACK_SIZE, &ref_acc, 2, NULL );
+                            OSI_STACK_SIZE, &ref_acc, 2, &AccpTaskHandle);
 
                     if(lRetVal < 0)
                     {
@@ -416,6 +419,14 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     }
                 }
             }
+	    else
+	    {
+		if (AccpTaskHandle != NULL)
+		{
+	    		osi_TaskDelete(AccpTaskHandle);
+			//AccpTaskHandle = NULL;
+		}
+	    }
         }
     }
 
@@ -1510,7 +1521,7 @@ end:
 
 
     //Antes de salir, crea la tarea que genera el patron
-    // Podr�a hacerlo en otro sitio, por ejemplo un comando.
+    // Podría hacerlo en otro sitio, por ejemplo un comando.
 	//lRetVal = osi_TaskCreate(ColorLedTask,
 	//                        (const signed char *)"ColorLeds",
 	//                        OSI_STACK_SIZE, NULL, 2, NULL );
@@ -1524,7 +1535,7 @@ end:
 
 
 
-    //Cambiar....> Ahora la parque que se intenta conectar, se haría en el interprete de comandos...
+    //Cambiar....> Ahora la parque que se intenta conectar, se harÃ­a en el interprete de comandos...
     //Se tendria que lanzar una tarea adicional
     OsiTaskHandle handle=NULL;
     osi_TaskDelete(&handle);
