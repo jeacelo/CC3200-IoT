@@ -291,7 +291,7 @@ int Cmd_read(int argc, char *argv[])
 	if (argc != 2)
 	{
 		//Si los parametros no son suficientes o son demasiados, muestro la ayuda
-		UARTprintf(" read [acc|mp]\n");
+		UARTprintf(" read [acc|tmp]\n");
 	}
 	else
 	{
