@@ -107,7 +107,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.107"
+#define SERVER_ADDRESS          "192.168.1.11"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -136,7 +136,7 @@
 #define PUB_TOPIC_ACC       "/cc3200/Acc"
 
 /*Defining Number of topics*/
-#define TOPIC_COUNT             3
+#define TOPIC_COUNT             1
 
 /*Defining Subscription Topic Values*/
 //#define TOPIC1                  "/cc3200/ToggleLEDCmdL1"
@@ -144,7 +144,8 @@
 //#define TOPIC3                  "/cc3200/ToggleLEDCmdL3"
 #define TOPIC_JSON              "/cc3200/ToggleLEDCmdJSON"
 #define TOPIC_LEDS				"/cc3200/LedsArray"
-#define TOPIC_SENSOR				"/cc3200/Sensors"
+#define TOPIC_SENSOR			"/cc3200/Sensors"
+#define TOPIC_CONFIG            "/cc3200/Config"
 
 /*Defining QOS levels*/
 #define QOS0                    0
@@ -253,12 +254,43 @@ connect_config usr_connect_config[] =
         KEEP_ALIVE_TIMER,
         {Mqtt_Recv, sl_MqttEvt, sl_MqttDisconnect},
         TOPIC_COUNT,
-        {TOPIC_JSON, TOPIC_LEDS, TOPIC_SENSOR}, /* Tantos como TOPIC_COUNT */
-        {QOS2, QOS2, QOS2}, /* Tantos como topics */
+        {TOPIC_CONFIG}, /* Tantos como TOPIC_COUNT */
+        {QOS2}, /* Tantos como topics */
         {WILL_TOPIC,WILL_MSG,WILL_QOS,WILL_RETAIN},
         false
     }
 };
+
+//connect_config usr_connect_config_2[] =
+//{
+//    {
+//        {
+//            {
+//                SL_MQTT_NETCONN_URL,
+//                SERVER_ADDRESS,
+//                PORT_NUMBER,
+//                0,
+//                0,
+//                0,
+//                NULL
+//            },
+//            SERVER_MODE,
+//            true,
+//        },
+//        NULL,
+//        (unsigned char *)"user1",
+//        NULL,
+//        NULL,
+//        true,
+//        KEEP_ALIVE_TIMER,
+//        {Mqtt_Recv, sl_MqttEvt, sl_MqttDisconnect},
+//        TOPIC_COUNT,
+//        {TOPIC_JSON, TOPIC_LEDS, TOPIC_SENSOR}, /* Tantos como TOPIC_COUNT */
+//        {QOS2, QOS2, QOS2}, /* Tantos como topics */
+//        {WILL_TOPIC,WILL_MSG,WILL_QOS,WILL_RETAIN},
+//        false
+//    }
+//};
 
 /* library configuration */
 SlMqttClientLibCfg_t Mqtt_Client={
@@ -279,6 +311,7 @@ const unsigned char *data_sw2={"Push button sw2 is pressed on CC32XX device"};
 const unsigned char *data_sw3={"Push button sw3 is pressed on CC32XX device"};
 
 void *app_hndl = (void*)usr_connect_config;
+//void *app_hndl_2 = (void*)usr_connect_config_2;
 
 static uint8_t pui8Colors[NUM_LEDS][3];
 static uint8_t pui8SPIOut[NUM_LEDS][WS2812_SPI_BYTE_PER_CLR *
@@ -292,6 +325,8 @@ signed char accZ = 0;
 int ref_temp, ref_acc;
 
 OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL;
+
+char *topic_leds, *topic_sensor;
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -326,6 +361,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     int red, green, blue;
     int index;
     long lRetVal = -1;
+    char *string;
 
     if (strncmp(output_str,TOPIC_JSON, top_len) == 0)
 	{
@@ -427,6 +463,21 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     AccpTaskHandle = NULL;
                 }
             }
+        }
+    }
+    else if(strncmp(output_str,TOPIC_CONFIG, top_len) == 0)
+    {
+        if (json_scanf((const char *)payload, pay_len, "{ LEDS: %Q }", &string)>0)
+        {
+            topic_leds = string;
+        }
+        if (json_scanf((const char *)payload, pay_len, "{ SENSOR: %Q }", &string)>0)
+        {
+            topic_sensor = string;
+        }
+        if (json_scanf((const char *)payload, pay_len, "{ LEDS: %d }", &red)>0)
+        {
+            green = red;
         }
     }
 
