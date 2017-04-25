@@ -107,7 +107,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.11"
+#define SERVER_ADDRESS          "192.168.43.146"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -328,6 +328,8 @@ OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL;
 
 char *topic_leds, *topic_sensor;
 
+void *clt_ctx_rec = NULL;
+
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
 //*****************************************************************************
@@ -361,7 +363,9 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     int red, green, blue;
     int index;
     long lRetVal = -1;
-    char *string;
+    char *topic_rec[1] = {TOPIC_LEDS};
+    char *topic_rec_2[1] = {TOPIC_SENSOR};
+    unsigned char qos_rec[1] = {QOS2};
 
     if (strncmp(output_str,TOPIC_JSON, top_len) == 0)
 	{
@@ -467,17 +471,32 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     }
     else if(strncmp(output_str,TOPIC_CONFIG, top_len) == 0)
     {
-        if (json_scanf((const char *)payload, pay_len, "{ LEDS: %Q }", &string)>0)
-        {
-            topic_leds = string;
-        }
-        if (json_scanf((const char *)payload, pay_len, "{ SENSOR: %Q }", &string)>0)
-        {
-            topic_sensor = string;
-        }
         if (json_scanf((const char *)payload, pay_len, "{ LEDS: %d }", &red)>0)
         {
-            green = red;
+            if (red == 0)
+            {
+                if(sl_ExtLib_MqttClientSub(usr_connect_config[0].clt_ctx, topic_rec,
+                        qos_rec, 1) < 0)
+                {
+                    UART_PRINT("\n\rError");
+                }
+                else
+                {
+                    UART_PRINT("\n\rSuccess");
+                }
+            }
+            else if (red == 1)
+            {
+                if(sl_ExtLib_MqttClientSub(usr_connect_config[0].clt_ctx, topic_rec_2,
+                        qos_rec, 1) < 0)
+                {
+                    UART_PRINT("\n\rError");
+                }
+                else
+                {
+                    UART_PRINT("\n\rSuccess");
+                }
+            }
         }
     }
 
@@ -1365,6 +1384,7 @@ void ConnectWiFI(void *pvParameters)
         sl_ExtLib_MqttClientCtxCreate(&local_con_conf[iCount].broker_config,
                                       &local_con_conf[iCount].CallBAcks,
                                       &(local_con_conf[iCount]));
+        clt_ctx_rec = local_con_conf[iCount].clt_ctx;
 
         //
         // Set Client ID

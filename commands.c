@@ -47,12 +47,32 @@
 #include "uart_if.h"
 #include "network_if.h"
 
+#include "sl_mqtt_client.h"
 
+
+typedef struct connection_config{
+    SlMqttClientCtxCfg_t broker_config;
+    void *clt_ctx;
+    unsigned char *client_id;
+    unsigned char *usr_name;
+    unsigned char *usr_pwd;
+    bool is_clean;
+    unsigned int keep_alive_time;
+    SlMqttClientCbs_t CallBAcks;
+    int num_topics;
+    char *topic[1];
+    unsigned char qos[1];
+    SlMqttWill_t will_params;
+    bool is_connected;
+}connect_config;
+
+#define QOS2                    2
 
 // ==============================================================================
 // The CPU usage in percent, in 16.16 fixed point format.
 // ==============================================================================
 extern uint32_t g_ui32CPUUsage;
+extern connect_config usr_connect_config[];
 
 // ==============================================================================
 // Implementa el comando cpu que muestra el uso de CPU
@@ -230,6 +250,8 @@ int Cmd_station(int argc, char *argv[])
 
 int Cmd_mode(int argc, char *argv[])
 {
+    char *topic_rec[1] = {"/cc3200/Leds"};
+    unsigned char qos_rec[1] = {QOS2};
 	if (argc != 2)
 	{
 		//Si los parametros no son suficientes o son demasiados, muestro la ayuda
@@ -251,6 +273,15 @@ int Cmd_mode(int argc, char *argv[])
 		    // Configure PIN_02 for I2C0 I2C_SDA
 		    //
 		    MAP_PinTypeI2C(PIN_02, PIN_MODE_1);
+		    if(sl_ExtLib_MqttClientSub(usr_connect_config[0].clt_ctx, topic_rec,
+		            qos_rec, 1) < 0)
+		    {
+		        UART_PRINT("\n\rError");
+		    }
+		    else
+		    {
+		        UART_PRINT("\n\rSuccess");
+		    }
 		}
 		else if (0==strncmp( argv[1], "led",3))
 		{
@@ -268,7 +299,6 @@ int Cmd_mode(int argc, char *argv[])
 		    MAP_PinTypeGPIO(PIN_02, PIN_MODE_0, false);
 		    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);
 			//No deberia hacerlo mientras haya una transferencia I2C activa.
-
 		}
 		else
 		{
