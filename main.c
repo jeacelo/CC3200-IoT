@@ -132,11 +132,11 @@
 #define PUB_TOPIC_FOR_SW3       "/cc3200/ButtonPressEvtSw3"
 #define PUB_TOPIC_FOR_SW2       "/cc3200/ButtonPressEvtSw2"
 #define PUB_TOPIC_JSON       "/cc3200/ButtonPressEvtJSON"
-#define PUB_TOPIC_TEMP       "/cc3200/Temp"
-#define PUB_TOPIC_ACC       "/cc3200/Acc"
+//#define PUB_TOPIC_TEMP       "/cc3200/Temp"
+//#define PUB_TOPIC_ACC       "/cc3200/Acc"
 
 /*Defining Number of topics*/
-#define TOPIC_COUNT             3
+#define TOPIC_COUNT             1
 
 /*Defining Subscription Topic Values*/
 //#define TOPIC1                  "/cc3200/ToggleLEDCmdL1"
@@ -145,6 +145,7 @@
 #define TOPIC_JSON              "/cc3200/ToggleLEDCmdJSON"
 #define TOPIC_LEDS				"/cc3200/LedsArray"
 #define TOPIC_SENSOR				"/cc3200/Sensors"
+#define TOPIC_CONFIG                "/cc3200/Config"
 
 /*Defining QOS levels*/
 #define QOS0                    0
@@ -253,8 +254,8 @@ connect_config usr_connect_config[] =
         KEEP_ALIVE_TIMER,
         {Mqtt_Recv, sl_MqttEvt, sl_MqttDisconnect},
         TOPIC_COUNT,
-        {TOPIC_JSON, TOPIC_LEDS, TOPIC_SENSOR}, /* Tantos como TOPIC_COUNT */
-        {QOS2, QOS2, QOS2}, /* Tantos como topics */
+        {TOPIC_CONFIG}, /* Tantos como TOPIC_COUNT */
+        {QOS2}, /* Tantos como topics */
         {WILL_TOPIC,WILL_MSG,WILL_QOS,WILL_RETAIN},
         false
     }
@@ -273,8 +274,10 @@ SlMqttClientLibCfg_t Mqtt_Client={
 const char *pub_topic_sw2 = PUB_TOPIC_FOR_SW2;
 const char *pub_topic_sw3 = PUB_TOPIC_FOR_SW3;
 const char *pub_topic_json = PUB_TOPIC_JSON;
-const char *pub_topic_temp = PUB_TOPIC_TEMP;
-const char *pub_topic_acc = PUB_TOPIC_ACC;
+char *sub_topic_leds = "initializated";
+char *sub_topic_sensors = "initializated2";
+char *pub_topic_temp = "initializated3";
+char *pub_topic_acc = "initializated4";
 const unsigned char *data_sw2={"Push button sw2 is pressed on CC32XX device"};
 const unsigned char *data_sw3={"Push button sw3 is pressed on CC32XX device"};
 
@@ -358,7 +361,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
 
     	}
 	}
-    else if(strncmp(output_str,TOPIC_LEDS, top_len) == 0)
+    else if(strncmp(output_str,sub_topic_leds, top_len) == 0)
     {
     	if (json_scanf((const char *)payload, pay_len, "{ LED:%d R:%d G:%d B:%d }", &index, &red, &green, &blue)>0)
     	{
@@ -372,7 +375,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     		InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
     	}
     }
-    else if(strncmp(output_str,TOPIC_SENSOR, top_len) == 0)
+    else if(strncmp(output_str,sub_topic_sensors, top_len) == 0)
     {
         if (json_scanf((const char *)payload, pay_len, "{ TEMP: %d }", &aux)>0)
         {
@@ -427,6 +430,33 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     AccpTaskHandle = NULL;
                 }
             }
+        }
+    }
+    else if (strncmp(output_str,TOPIC_CONFIG, top_len) == 0)
+    {
+        UART_PRINT("%s",sub_topic_leds);
+        if (json_scanf((const char *)payload, pay_len, "{ LEDS: %Q }", &sub_topic_leds)>0)
+        {
+            UART_PRINT("\n\rTopic Leds Received: ");
+            UART_PRINT("%s\n",sub_topic_leds);
+        }
+        UART_PRINT("%s",sub_topic_sensors);
+        if (json_scanf((const char *)payload, pay_len, "{ SENSORS: %Q }", &sub_topic_sensors)>0)
+        {
+            UART_PRINT("\n\rTopic Sensors Received: ");
+            UART_PRINT("%s\n",sub_topic_sensors);
+        }
+        UART_PRINT("%s",pub_topic_temp);
+        if (json_scanf((const char *)payload, pay_len, "{ TEMP: %Q }", &pub_topic_temp)>0)
+        {
+            UART_PRINT("\n\rTopic Temp Received: ");
+            UART_PRINT("%s\n",pub_topic_temp);
+        }
+        UART_PRINT("%s",pub_topic_acc);
+        if (json_scanf((const char *)payload, pay_len, "{ ACC: %Q }", &pub_topic_acc)>0)
+        {
+            UART_PRINT("\n\rTopic Acc Received: ");
+            UART_PRINT("%s\n",pub_topic_acc);
         }
     }
 
