@@ -210,6 +210,7 @@ static void DisplayBanner(char * AppName);
 void ConnectWiFI(void *pvParameters);
 void TempTask(void *pvParameters);
 void AccTask(void *pvParameters);
+void SubTask();
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- Start
 //*****************************************************************************
@@ -274,6 +275,7 @@ SlMqttClientLibCfg_t Mqtt_Client={
 const char *pub_topic_sw2 = PUB_TOPIC_FOR_SW2;
 const char *pub_topic_sw3 = PUB_TOPIC_FOR_SW3;
 const char *pub_topic_json = PUB_TOPIC_JSON;
+char *topic_root = "/cc3200/";
 char *sub_topic_leds = "initializated";
 char *sub_topic_sensors = "initializated2";
 char *pub_topic_temp = "initializated3";
@@ -294,7 +296,9 @@ signed char accZ = 0;
 
 int ref_temp, ref_acc;
 
-OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL;
+OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL, SubTaskHandle = NULL;
+
+bool topic_leds = false, topic_sensors = false;
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -439,12 +443,14 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
         {
             UART_PRINT("\n\rTopic Leds Received: ");
             UART_PRINT("%s\n",sub_topic_leds);
+            topic_leds = true;
         }
         UART_PRINT("%s",sub_topic_sensors);
         if (json_scanf((const char *)payload, pay_len, "{ SENSORS: %Q }", &sub_topic_sensors)>0)
         {
             UART_PRINT("\n\rTopic Sensors Received: ");
             UART_PRINT("%s\n",sub_topic_sensors);
+            topic_sensors = true;
         }
         UART_PRINT("%s",pub_topic_temp);
         if (json_scanf((const char *)payload, pay_len, "{ TEMP: %Q }", &pub_topic_temp)>0)
@@ -457,6 +463,18 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
         {
             UART_PRINT("\n\rTopic Acc Received: ");
             UART_PRINT("%s\n",pub_topic_acc);
+        }
+        if (topic_leds || topic_sensors)
+        {
+            lRetVal = osi_TaskCreate(SubTask,
+                    (const signed char *)"SubTask",
+                    OSI_STACK_SIZE, NULL, 2, &SubTaskHandle);
+
+            if(lRetVal < 0)
+            {
+                ERR_PRINT(lRetVal);
+                LOOP_FOREVER();
+            }
         }
     }
 
@@ -1610,6 +1628,34 @@ void AccTask(void *pvParameters)
 		osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
 		osi_Sleep(refresh);
 	}
+}
+
+void SubTask()
+{
+    osi_Sleep(1000);
+    char *topic[1];
+    if (topic_leds)
+    {
+        strcpy(topic[0],  "/cc3200/");
+        strcat(topic[0], sub_topic_leds);
+        //strcpy(usr_connect_config[0].topic[0], topic);
+        if(sl_ExtLib_MqttClientSub((void*)usr_connect_config[0].clt_ctx,
+                topic, usr_connect_config[0].qos, 1) < 0)
+        {
+            UART_PRINT("\n Sub Topic Leds");
+        }
+    }
+    if (topic_sensors)
+    {
+        strcpy(topic[0],  "/cc3200/");
+        strcat(topic[0], sub_topic_sensors);
+        //strcpy(usr_connect_config[0].topic[0], topic);
+        if(sl_ExtLib_MqttClientSub((void*)usr_connect_config[0].clt_ctx,
+                topic, usr_connect_config[0].qos, 1) < 0)
+        {
+            UART_PRINT("\n Sub Topic Sensors");
+        }
+    }
 }
 
 
