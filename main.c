@@ -107,7 +107,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.107"
+#define SERVER_ADDRESS          "192.168.1.15"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -1256,10 +1256,20 @@ void ConnectWiFI(void *pvParameters)
     //
     // Vuelve a poner los pines como salida GPIO
     // No deberia hacerlo mientras haya una transferencia I2C activa.
-    MAP_PinTypeGPIO(PIN_01, PIN_MODE_0, false);
+    /*MAP_PinTypeGPIO(PIN_01, PIN_MODE_0, false);
     MAP_GPIODirModeSet(GPIOA1_BASE, 0x4, GPIO_DIR_MODE_OUT);
     MAP_PinTypeGPIO(PIN_02, PIN_MODE_0, false);
-    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);
+    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);*/
+
+    //This disconfigures PIN1 and 2 for SENSORS...
+    // Configure PIN_01 for I2C0 I2C_SCL
+    //
+    MAP_PinTypeI2C(PIN_01, PIN_MODE_1);
+
+    //
+    // Configure PIN_02 for I2C0 I2C_SDA
+    //
+    MAP_PinTypeI2C(PIN_02, PIN_MODE_1);
 
     //HAbilitamos los timers en modo PWM (pero NO habilitamos los pines como PWM)
     PWM_IF_Init(0);
