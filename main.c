@@ -42,6 +42,7 @@
 #include<stdint.h>
 #include<stdbool.h>
 #include<math.h>
+#include<string.h>
 
 // Standard includes
 #include <stdlib.h>
@@ -107,7 +108,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.15"
+#define SERVER_ADDRESS          "192.168.1.12"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -275,11 +276,11 @@ SlMqttClientLibCfg_t Mqtt_Client={
 const char *pub_topic_sw2 = PUB_TOPIC_FOR_SW2;
 const char *pub_topic_sw3 = PUB_TOPIC_FOR_SW3;
 const char *pub_topic_json = PUB_TOPIC_JSON;
-char *topic_root = "/cc3200/";
+const char *topic_root = "/cc3200/";
 char *sub_topic_leds = "initializated";
-char *sub_topic_sensors = "initializated2";
-char *pub_topic_temp = "initializated3";
-char *pub_topic_acc = "initializated4";
+char *sub_topic_sensors = "initializated";
+char *pub_topic_temp = "initializated";
+char *pub_topic_acc = "initializated";
 const unsigned char *data_sw2={"Push button sw2 is pressed on CC32XX device"};
 const unsigned char *data_sw3={"Push button sw3 is pressed on CC32XX device"};
 
@@ -298,7 +299,7 @@ int ref_temp, ref_acc;
 
 OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL, SubTaskHandle = NULL;
 
-bool topic_leds = false, topic_sensors = false;
+bool topic_leds = false, topic_sensors = false, topic_temp = false, topic_acc = false;
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -457,12 +458,14 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
         {
             UART_PRINT("\n\rTopic Temp Received: ");
             UART_PRINT("%s\n",pub_topic_temp);
+            topic_temp = true;
         }
         UART_PRINT("%s",pub_topic_acc);
         if (json_scanf((const char *)payload, pay_len, "{ ACC: %Q }", &pub_topic_acc)>0)
         {
             UART_PRINT("\n\rTopic Acc Received: ");
             UART_PRINT("%s\n",pub_topic_acc);
+            topic_acc = true;
         }
         if (topic_leds || topic_sensors)
         {
@@ -1618,27 +1621,27 @@ void TempTask(void *pvParameters)
 
 void AccTask(void *pvParameters)
 {
-	int refresh;
-	while(1){
-		refresh = *((int *)pvParameters);
-		osi_messages var = READ_ACC;
-		//
-		// write message indicating exit from sending loop
-		//
-		osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-		osi_Sleep(refresh);
-	}
+    int refresh;
+    while(1){
+        refresh = *((int *)pvParameters);
+        osi_messages var = READ_ACC;
+        //
+        // write message indicating exit from sending loop
+        //
+        osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
+        osi_Sleep(refresh);
+    }
 }
 
 void SubTask()
 {
-    osi_Sleep(1000);
-    char *topic[1];
+    osi_Sleep(2000);
+    char *topic[1] = {""};
     if (topic_leds)
     {
-        strcpy(topic[0],  "/cc3200/");
+        strcpy(topic[0], topic_root);
         strcat(topic[0], sub_topic_leds);
-        //strcpy(usr_connect_config[0].topic[0], topic);
+        strcpy(sub_topic_leds, topic[0]);
         if(sl_ExtLib_MqttClientSub((void*)usr_connect_config[0].clt_ctx,
                 topic, usr_connect_config[0].qos, 1) < 0)
         {
@@ -1647,14 +1650,26 @@ void SubTask()
     }
     if (topic_sensors)
     {
-        strcpy(topic[0],  "/cc3200/");
+        strcpy(topic[0], topic_root);
         strcat(topic[0], sub_topic_sensors);
-        //strcpy(usr_connect_config[0].topic[0], topic);
+        strcpy(sub_topic_sensors, topic[0]);
         if(sl_ExtLib_MqttClientSub((void*)usr_connect_config[0].clt_ctx,
                 topic, usr_connect_config[0].qos, 1) < 0)
         {
             UART_PRINT("\n Sub Topic Sensors");
         }
+    }
+    if (topic_temp)
+    {
+        strcpy(topic[0], topic_root);
+        strcat(topic[0], pub_topic_temp);
+        strcpy(pub_topic_temp, topic[0]);
+    }
+    if (topic_acc)
+    {
+        strcpy(topic[0], topic_root);
+        strcat(topic[0], pub_topic_acc);
+        strcpy(pub_topic_acc, topic[0]);
     }
 }
 
