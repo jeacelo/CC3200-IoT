@@ -42,6 +42,7 @@
 #include<stdint.h>
 #include<stdbool.h>
 #include<math.h>
+#include<string.h>
 
 // Standard includes
 #include <stdlib.h>
@@ -107,7 +108,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.107"
+#define SERVER_ADDRESS          "192.168.1.12"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -132,11 +133,11 @@
 #define PUB_TOPIC_FOR_SW3       "/cc3200/ButtonPressEvtSw3"
 #define PUB_TOPIC_FOR_SW2       "/cc3200/ButtonPressEvtSw2"
 #define PUB_TOPIC_JSON       "/cc3200/ButtonPressEvtJSON"
-#define PUB_TOPIC_TEMP       "/cc3200/Temp"
-#define PUB_TOPIC_ACC       "/cc3200/Acc"
+//#define PUB_TOPIC_TEMP       "/cc3200/Temp"
+//#define PUB_TOPIC_ACC       "/cc3200/Acc"
 
 /*Defining Number of topics*/
-#define TOPIC_COUNT             3
+#define TOPIC_COUNT             1
 
 /*Defining Subscription Topic Values*/
 //#define TOPIC1                  "/cc3200/ToggleLEDCmdL1"
@@ -145,6 +146,7 @@
 #define TOPIC_JSON              "/cc3200/ToggleLEDCmdJSON"
 #define TOPIC_LEDS				"/cc3200/LedsArray"
 #define TOPIC_SENSOR				"/cc3200/Sensors"
+#define TOPIC_CONFIG                "/cc3200/Config"
 
 /*Defining QOS levels*/
 #define QOS0                    0
@@ -209,6 +211,7 @@ static void DisplayBanner(char * AppName);
 void ConnectWiFI(void *pvParameters);
 void TempTask(void *pvParameters);
 void AccTask(void *pvParameters);
+void SubTask();
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- Start
 //*****************************************************************************
@@ -253,8 +256,8 @@ connect_config usr_connect_config[] =
         KEEP_ALIVE_TIMER,
         {Mqtt_Recv, sl_MqttEvt, sl_MqttDisconnect},
         TOPIC_COUNT,
-        {TOPIC_JSON, TOPIC_LEDS, TOPIC_SENSOR}, /* Tantos como TOPIC_COUNT */
-        {QOS2, QOS2, QOS2}, /* Tantos como topics */
+        {TOPIC_CONFIG}, /* Tantos como TOPIC_COUNT */
+        {QOS2}, /* Tantos como topics */
         {WILL_TOPIC,WILL_MSG,WILL_QOS,WILL_RETAIN},
         false
     }
@@ -273,8 +276,11 @@ SlMqttClientLibCfg_t Mqtt_Client={
 const char *pub_topic_sw2 = PUB_TOPIC_FOR_SW2;
 const char *pub_topic_sw3 = PUB_TOPIC_FOR_SW3;
 const char *pub_topic_json = PUB_TOPIC_JSON;
-const char *pub_topic_temp = PUB_TOPIC_TEMP;
-const char *pub_topic_acc = PUB_TOPIC_ACC;
+const char *topic_root = "/cc3200/";
+char *sub_topic_leds = "initializated";
+char *sub_topic_sensors = "initializated";
+char *pub_topic_temp = "initializated";
+char *pub_topic_acc = "initializated";
 const unsigned char *data_sw2={"Push button sw2 is pressed on CC32XX device"};
 const unsigned char *data_sw3={"Push button sw3 is pressed on CC32XX device"};
 
@@ -291,7 +297,9 @@ signed char accZ = 0;
 
 int ref_temp, ref_acc;
 
-OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL;
+OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL, SubTaskHandle = NULL;
+
+bool topic_leds = false, topic_sensors = false, topic_temp = false, topic_acc = false;
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -358,7 +366,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
 
     	}
 	}
-    else if(strncmp(output_str,TOPIC_LEDS, top_len) == 0)
+    else if(strncmp(output_str,sub_topic_leds, top_len) == 0)
     {
     	if (json_scanf((const char *)payload, pay_len, "{ LED:%d R:%d G:%d B:%d }", &index, &red, &green, &blue)>0)
     	{
@@ -372,7 +380,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     		InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
     	}
     }
-    else if(strncmp(output_str,TOPIC_SENSOR, top_len) == 0)
+    else if(strncmp(output_str,sub_topic_sensors, top_len) == 0)
     {
         if (json_scanf((const char *)payload, pay_len, "{ TEMP: %d }", &aux)>0)
         {
@@ -426,6 +434,49 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     osi_TaskDelete(&AccpTaskHandle);
                     AccpTaskHandle = NULL;
                 }
+            }
+        }
+    }
+    else if (strncmp(output_str,TOPIC_CONFIG, top_len) == 0)
+    {
+        UART_PRINT("%s",sub_topic_leds);
+        if (json_scanf((const char *)payload, pay_len, "{ LEDS: %Q }", &sub_topic_leds)>0)
+        {
+            UART_PRINT("\n\rTopic Leds Received: ");
+            UART_PRINT("%s\n",sub_topic_leds);
+            topic_leds = true;
+        }
+        UART_PRINT("%s",sub_topic_sensors);
+        if (json_scanf((const char *)payload, pay_len, "{ SENSORS: %Q }", &sub_topic_sensors)>0)
+        {
+            UART_PRINT("\n\rTopic Sensors Received: ");
+            UART_PRINT("%s\n",sub_topic_sensors);
+            topic_sensors = true;
+        }
+        UART_PRINT("%s",pub_topic_temp);
+        if (json_scanf((const char *)payload, pay_len, "{ TEMP: %Q }", &pub_topic_temp)>0)
+        {
+            UART_PRINT("\n\rTopic Temp Received: ");
+            UART_PRINT("%s\n",pub_topic_temp);
+            topic_temp = true;
+        }
+        UART_PRINT("%s",pub_topic_acc);
+        if (json_scanf((const char *)payload, pay_len, "{ ACC: %Q }", &pub_topic_acc)>0)
+        {
+            UART_PRINT("\n\rTopic Acc Received: ");
+            UART_PRINT("%s\n",pub_topic_acc);
+            topic_acc = true;
+        }
+        if (topic_leds || topic_sensors)
+        {
+            lRetVal = osi_TaskCreate(SubTask,
+                    (const signed char *)"SubTask",
+                    OSI_STACK_SIZE, NULL, 2, &SubTaskHandle);
+
+            if(lRetVal < 0)
+            {
+                ERR_PRINT(lRetVal);
+                LOOP_FOREVER();
             }
         }
     }
@@ -1256,10 +1307,20 @@ void ConnectWiFI(void *pvParameters)
     //
     // Vuelve a poner los pines como salida GPIO
     // No deberia hacerlo mientras haya una transferencia I2C activa.
-    MAP_PinTypeGPIO(PIN_01, PIN_MODE_0, false);
+    /*MAP_PinTypeGPIO(PIN_01, PIN_MODE_0, false);
     MAP_GPIODirModeSet(GPIOA1_BASE, 0x4, GPIO_DIR_MODE_OUT);
     MAP_PinTypeGPIO(PIN_02, PIN_MODE_0, false);
-    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);
+    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);*/
+
+    //This disconfigures PIN1 and 2 for SENSORS...
+    // Configure PIN_01 for I2C0 I2C_SCL
+    //
+    MAP_PinTypeI2C(PIN_01, PIN_MODE_1);
+
+    //
+    // Configure PIN_02 for I2C0 I2C_SDA
+    //
+    MAP_PinTypeI2C(PIN_02, PIN_MODE_1);
 
     //HAbilitamos los timers en modo PWM (pero NO habilitamos los pines como PWM)
     PWM_IF_Init(0);
@@ -1560,16 +1621,56 @@ void TempTask(void *pvParameters)
 
 void AccTask(void *pvParameters)
 {
-	int refresh;
-	while(1){
-		refresh = *((int *)pvParameters);
-		osi_messages var = READ_ACC;
-		//
-		// write message indicating exit from sending loop
-		//
-		osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-		osi_Sleep(refresh);
-	}
+    int refresh;
+    while(1){
+        refresh = *((int *)pvParameters);
+        osi_messages var = READ_ACC;
+        //
+        // write message indicating exit from sending loop
+        //
+        osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
+        osi_Sleep(refresh);
+    }
+}
+
+void SubTask()
+{
+    osi_Sleep(2000);
+    char *topic[1] = {""};
+    if (topic_leds)
+    {
+        strcpy(topic[0], topic_root);
+        strcat(topic[0], sub_topic_leds);
+        strcpy(sub_topic_leds, topic[0]);
+        if(sl_ExtLib_MqttClientSub((void*)usr_connect_config[0].clt_ctx,
+                topic, usr_connect_config[0].qos, 1) < 0)
+        {
+            UART_PRINT("\n Sub Topic Leds");
+        }
+    }
+    if (topic_sensors)
+    {
+        strcpy(topic[0], topic_root);
+        strcat(topic[0], sub_topic_sensors);
+        strcpy(sub_topic_sensors, topic[0]);
+        if(sl_ExtLib_MqttClientSub((void*)usr_connect_config[0].clt_ctx,
+                topic, usr_connect_config[0].qos, 1) < 0)
+        {
+            UART_PRINT("\n Sub Topic Sensors");
+        }
+    }
+    if (topic_temp)
+    {
+        strcpy(topic[0], topic_root);
+        strcat(topic[0], pub_topic_temp);
+        strcpy(pub_topic_temp, topic[0]);
+    }
+    if (topic_acc)
+    {
+        strcpy(topic[0], topic_root);
+        strcat(topic[0], pub_topic_acc);
+        strcpy(pub_topic_acc, topic[0]);
+    }
 }
 
 
