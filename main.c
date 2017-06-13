@@ -90,11 +90,10 @@
 
 #include "frozen.h" //Cabecera JSON
 
+//Librerias para control de iluminacion WS2812B
 #include <WS2812/example/samplePatterns.h>
 #include <WS2812/SPI_uDMA_drv.h>
 #include <WS2812/WS2812_drv.h>
-
-//#define STATION_MODE 1
 
 #define APPLICATION_VERSION 	"1.1.1"
 
@@ -108,7 +107,8 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.2"
+#define SERVER_ADDRESS          "192.168.1.13"
+//#define SERVER_ADDRESS          "192.168.1.2"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -129,23 +129,10 @@
 /*Retain Flag. Used in publish message. */
 #define RETAIN                  1
 
-/*Defining Publish Topic*/
-#define PUB_TOPIC_FOR_SW3       "/cc3200/ButtonPressEvtSw3"
-#define PUB_TOPIC_FOR_SW2       "/cc3200/ButtonPressEvtSw2"
-#define PUB_TOPIC_JSON       "/cc3200/ButtonPressEvtJSON"
-//#define PUB_TOPIC_TEMP       "/cc3200/Temp"
-//#define PUB_TOPIC_ACC       "/cc3200/Acc"
-
 /*Defining Number of topics*/
 #define TOPIC_COUNT             1
 
 /*Defining Subscription Topic Values*/
-//#define TOPIC1                  "/cc3200/ToggleLEDCmdL1"
-//#define TOPIC2                  "/cc3200/ToggleLEDCmdL2"
-//#define TOPIC3                  "/cc3200/ToggleLEDCmdL3"
-#define TOPIC_JSON              "/cc3200/ToggleLEDCmdJSON"
-#define TOPIC_LEDS				"/cc3200/LedsArray"
-#define TOPIC_SENSOR				"/cc3200/Sensors"
 #define TOPIC_CONFIG                "/cc3200/Config"
 
 /*Defining QOS levels*/
@@ -177,8 +164,6 @@ typedef struct connection_config{
 
 typedef enum events
 {
-    PUSH_BUTTON_SW2_PRESSED,
-    PUSH_BUTTON_SW3_PRESSED,
 	READ_TEMP,
 	READ_ACC,
     BROKER_DISCONNECTION
@@ -199,10 +184,6 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
 static void sl_MqttEvt(void *app_hndl,long evt, const void *buf,
                        unsigned long len);
 static void sl_MqttDisconnect(void *app_hndl);
-void pushButtonInterruptHandler2();
-void pushButtonInterruptHandler3();
-void ReadTempInterruptHandler();
-void ToggleLedState(ledEnum LedNum);
 void TimerPeriodicIntHandler(void);
 void LedTimerConfigNStart();
 void LedTimerDeinitStop();
@@ -273,16 +254,11 @@ SlMqttClientLibCfg_t Mqtt_Client={
 };
 
 /*Publishing topics and messages*/
-const char *pub_topic_sw2 = PUB_TOPIC_FOR_SW2;
-const char *pub_topic_sw3 = PUB_TOPIC_FOR_SW3;
-const char *pub_topic_json = PUB_TOPIC_JSON;
 const char *topic_root = "/cc3200/";
 char *sub_topic_leds = "initializated";
 char *sub_topic_sensors = "initializated";
 char *pub_topic_temp = "initializated";
 char *pub_topic_acc = "initializated";
-const unsigned char *data_sw2={"Push button sw2 is pressed on CC32XX device"};
-const unsigned char *data_sw3={"Push button sw3 is pressed on CC32XX device"};
 
 void *app_hndl = (void*)usr_connect_config;
 
@@ -300,6 +276,10 @@ int ref_temp, ref_acc;
 OsiTaskHandle TemppTaskHandle = NULL, AccpTaskHandle = NULL, SubTaskHandle = NULL;
 
 bool topic_leds = false, topic_sensors = false, topic_temp = false, topic_acc = false;
+
+//GLOBAL PARA DE MOMENTO NO GASTAR PILA (CUIDADO!!!)
+char json_buffer[100];
+//struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -325,8 +305,7 @@ static void
 Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload,
                        long pay_len, bool dup,unsigned char qos, bool retain)
 {
-    int aux;
-	bool booleano;
+    int refresh;
     char *output_str=(char*)pvPortMalloc(top_len+1);
     memset(output_str,'\0',top_len+1);
     strncpy(output_str, (char*)topstr, top_len);
@@ -335,40 +314,9 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     int index;
     long lRetVal = -1;
 
-    if (strncmp(output_str,TOPIC_JSON, top_len) == 0)
-	{
-    	//JMCG: Ejemplo de parseo JSON....
-    	if (json_scanf((const char *)payload, pay_len, "{ redLed: %B }", &booleano)>0)
-    	{
-
-    		if (booleano)
-    			GPIO_IF_LedOn(MCU_RED_LED_GPIO);
-    		else
-    			GPIO_IF_LedOff(MCU_RED_LED_GPIO);
-
-    	}
-    	if (json_scanf((const char *)payload, pay_len, "{ greenLed: %B }", &booleano)>0)
-    	{
-
-    		if (booleano)
-    			GPIO_IF_LedOn(MCU_GREEN_LED_GPIO);
-    		else
-    			GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
-
-    	}
-    	if (json_scanf((const char *)payload, pay_len, "{ orangeLed: %B }", &booleano)>0)
-    	{
-
-    		if (booleano)
-    			GPIO_IF_LedOn(MCU_ORANGE_LED_GPIO);
-    		else
-    			GPIO_IF_LedOff(MCU_ORANGE_LED_GPIO);
-
-    	}
-	}
-    else if(strncmp(output_str,sub_topic_leds, top_len) == 0)
+    if(strncmp(output_str,sub_topic_leds, top_len) == 0)
     {
-    	if (json_scanf((const char *)payload, pay_len, "{ LED:%d R:%d G:%d B:%d }", &index, &red, &green, &blue)>0)
+    	if (json_scanf((const char *)payload, pay_len, "{ LED: %d R: %d G: %d B: %d }", &index, &red, &green, &blue)>0)
     	{
     		waitSPITramsfer();
     		osi_Sleep(100);
@@ -382,11 +330,11 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     }
     else if(strncmp(output_str,sub_topic_sensors, top_len) == 0)
     {
-        if (json_scanf((const char *)payload, pay_len, "{ TEMP: %d }", &aux)>0)
+        if (json_scanf((const char *)payload, pay_len, "{ TEMP: %d }", &refresh)>0)
         {
-            if (aux>0)
+            if (refresh>0)
             {
-                ref_temp = aux;
+                ref_temp = refresh;
                 if (TemppTaskHandle == NULL)
                 {
                     lRetVal = osi_TaskCreate(TempTask,
@@ -400,7 +348,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     }
                 }
             }
-            else if (aux==0)
+            else if (refresh==0)
             {
                 if (TemppTaskHandle != NULL)
                 {
@@ -409,11 +357,11 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                 }
             }
         }
-        if (json_scanf((const char *)payload, pay_len, "{ ACC: %d }", &aux)>0)
+        if (json_scanf((const char *)payload, pay_len, "{ ACC: %d }", &refresh)>0)
         {
-            if (aux>0)
+            if (refresh>0)
             {
-                ref_acc = aux;
+                ref_acc = refresh;
                 if (AccpTaskHandle == NULL)
                 {
                     lRetVal = osi_TaskCreate(AccTask,
@@ -427,7 +375,7 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
                     }
                 }
             }
-            else if (aux==0)
+            else if (refresh==0)
             {
                 if (AccpTaskHandle != NULL)
                 {
@@ -439,35 +387,23 @@ Mqtt_Recv(void *app_hndl, const char  *topstr, long top_len, const void *payload
     }
     else if (strncmp(output_str,TOPIC_CONFIG, top_len) == 0)
     {
-        UART_PRINT("%s",sub_topic_leds);
         if (json_scanf((const char *)payload, pay_len, "{ LEDS: %Q }", &sub_topic_leds)>0)
         {
-            UART_PRINT("\n\rTopic Leds Received: ");
-            UART_PRINT("%s\n",sub_topic_leds);
             topic_leds = true;
         }
-        UART_PRINT("%s",sub_topic_sensors);
         if (json_scanf((const char *)payload, pay_len, "{ SENSORS: %Q }", &sub_topic_sensors)>0)
         {
-            UART_PRINT("\n\rTopic Sensors Received: ");
-            UART_PRINT("%s\n",sub_topic_sensors);
             topic_sensors = true;
         }
-        UART_PRINT("%s",pub_topic_temp);
         if (json_scanf((const char *)payload, pay_len, "{ TEMP: %Q }", &pub_topic_temp)>0)
         {
-            UART_PRINT("\n\rTopic Temp Received: ");
-            UART_PRINT("%s\n",pub_topic_temp);
             topic_temp = true;
         }
-        UART_PRINT("%s",pub_topic_acc);
         if (json_scanf((const char *)payload, pay_len, "{ ACC: %Q }", &pub_topic_acc)>0)
         {
-            UART_PRINT("\n\rTopic Acc Received: ");
-            UART_PRINT("%s\n",pub_topic_acc);
             topic_acc = true;
         }
-        if (topic_leds || topic_sensors)
+        if (topic_leds || topic_sensors || topic_temp || topic_acc)
         {
             lRetVal = osi_TaskCreate(SubTask,
                     (const signed char *)"SubTask",
@@ -578,100 +514,6 @@ sl_MqttDisconnect(void *app_hndl)
     //
     osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
 
-}
-
-//****************************************************************************
-//
-//! Push Button Handler1(GPIOS2). Press push button2 (GPIOSW2) Whenever user
-//! wants to publish a message. Write message into message queue signaling the
-//!    event publish messages
-//!
-//! \param none
-//!
-//! return none
-//
-//****************************************************************************
-void pushButtonInterruptHandler2()
-{
-    osi_messages var = PUSH_BUTTON_SW2_PRESSED;
-    //
-    // write message indicating publish message
-    //
-    osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-}
-
-//****************************************************************************
-//
-//! Push Button Handler3(GPIOS3). Press push button3 (GPIOSW3) Whenever user
-//! wants to publish a message. Write message into message queue signaling the
-//!    event publish messages
-//!
-//! \param none
-//!
-//! return none
-//
-//****************************************************************************
-void pushButtonInterruptHandler3()
-{
-    osi_messages var = PUSH_BUTTON_SW3_PRESSED;
-    //
-    // write message indicating exit from sending loop
-    //
-    osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
-
-
-}
-
-//****************************************************************************
-//
-//!    Toggles the state of GPIOs(LEDs)
-//!
-//! \param LedNum is the enumeration for the GPIO to be toggled
-//!
-//!    \return none
-//
-//****************************************************************************
-void ToggleLedState(ledEnum LedNum)
-{
-    unsigned char ledstate = 0;
-    switch(LedNum)
-    {
-    case LED1:
-        ledstate = GPIO_IF_LedStatus(MCU_RED_LED_GPIO);
-        if(!ledstate)
-        {
-            GPIO_IF_LedOn(MCU_RED_LED_GPIO);
-        }
-        else
-        {
-            GPIO_IF_LedOff(MCU_RED_LED_GPIO);
-        }
-        break;
-    case LED2:
-        ledstate = GPIO_IF_LedStatus(MCU_ORANGE_LED_GPIO);
-        if(!ledstate)
-        {
-            GPIO_IF_LedOn(MCU_ORANGE_LED_GPIO);
-        }
-        else
-        {
-            GPIO_IF_LedOff(MCU_ORANGE_LED_GPIO);
-        }
-        break;
-    case LED3:
-        ledstate = GPIO_IF_LedStatus(MCU_GREEN_LED_GPIO);
-        if(!ledstate)
-        {
-            GPIO_IF_LedOn(MCU_GREEN_LED_GPIO);
-        }
-        else
-        {
-            GPIO_IF_LedOff(MCU_GREEN_LED_GPIO);
-        }
-        break;
-    default:
-        break;
-    }
 }
 
 //*****************************************************************************
@@ -806,94 +648,6 @@ DisplayBanner(char * AppName)
     UART_PRINT("\n\n\n\r");
 }
   
-
-
-
-
-// Esta tarea Utiliza la biblioteca de los LEDs para mostrar un patron de colorines que va rotando...
-#define NUM_LEDS 22
-void ColorLedTask(void *pvParameters)
-{
-
-	volatile uint8_t ui8SPIDone;
-	static uint8_t pui8Colors[NUM_LEDS][3];
-
-	    //
-	    // The output array for the SPI bus.  The nature of the timing for the LEDs
-	    // makes it so we can't just map a single intensity byte onto a single byte
-	    // to transmit out the SPI peripheral.  Instead, we separate each bit of
-	    // the intensity to four bits of SPI out.  The WS one wire protocol
-	    // basically boils down to "110" on the SPI bus is read as a 1 by the LED,
-	    // "100" is a 0.  We use some macros to figure out how many bytes of SPI
-	    // array we need to represent each of the 30 LEDs.
-	    //
-	    static uint8_t pui8SPIOut[NUM_LEDS][WS2812_SPI_BYTE_PER_CLR *
-	                                  WS2812_SPI_BIT_WIDTH];
-
-
-	    InitRGBSPI(); //Aqui o en el MAIN...
-
-	    rainbowInit(pui8Colors, NUM_LEDS);
-	    WSArrayInit(pui8SPIOut, sizeof(pui8SPIOut));
-
-	    //
-	    // Initialize and start the inifinite uDMA transfers
-	    //
-	    InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
-
-	//while(1)
-	//{
-		/*int i,j;
-
-		for (j=0;j<NUM_LEDS;j++)
-		{
-			waitSPITramsfer();
-			osi_Sleep(100);
-
-
-			for(i=0;i<NUM_LEDS;i++)
-			{
-				//
-				//            //
-				//            // Update the RGB colors to the next value in the color wheel
-				//            //
-				//        		rainbowShift(&(pui8Colors[i][0]), &(pui8Colors[i][1]),
-				//                         &(pui8Colors[i][2]));
-				//
-				if((j+i)<NUM_LEDS)
-				{
-					WSGRBtoSPI(pui8SPIOut[i], pui8Colors[j+i][0],
-							pui8Colors[j+i][1], pui8Colors[j+i][2]);
-				}
-				else
-				{
-					WSGRBtoSPI(pui8SPIOut[i], pui8Colors[j+i-NUM_LEDS][0],
-												pui8Colors[j+i-NUM_LEDS][1], pui8Colors[j+i-NUM_LEDS][2]);
-				}
-
-			}
-			WSGRBtoSPI(pui8SPIOut[j], pui8Colors[j][0],
-										pui8Colors[j][1], pui8Colors[j][2]);
-			pui8Colors[7][0]=60;
-			pui8Colors[7][1]=236;
-			pui8Colors[7][2]=232;
-			WSGRBtoSPI(pui8SPIOut[7], pui8Colors[7][0],
-													pui8Colors[7][1], pui8Colors[7][2]);
-			InitSPITransfer((uint8_t*)pui8SPIOut, sizeof(pui8SPIOut));
-		}*/
-	//}
-}
-
-
-
-
-
-
-//GLOBAL PARA DE MOMENTO NO GASTAR PILA (CUIDADO!!!)
-char json_buffer[100];
-//struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
-
-
 #ifndef STATION_MODE
 //MQTT Task (Para el caso en el que no estoy en modo "STATION"
 #ifdef __cplusplus
@@ -1042,52 +796,7 @@ void MqttClientTask(void *pvParameters)
 	    {
 	    	osi_MsgQRead( &g_PBQueue, &RecvQue, OSI_WAIT_FOREVER);
 
-	    	if(PUSH_BUTTON_SW2_PRESSED == RecvQue)
-	    	{
-	    		Button_IF_EnableInterrupt(SW2);
-	    		//
-				// send publish message
-	    		//
-	    		sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-	    				pub_topic_sw2,data_sw2,strlen((char*)data_sw2),QOS2,RETAIN);
-
-	    		struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));//Reinicio out1, de lo contrario se van acumulando los printfs
-
-	    		json_printf(&out1,"{ boton : %B}",false);
-
-
-
-	    		sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-	    				pub_topic_json,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
-	    		UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
-	    		UART_PRINT("Topic: %s\n\r",pub_topic_sw2);
-	    		UART_PRINT("Data: %s\n\r",data_sw2);
-	    	}
-	    	else if(PUSH_BUTTON_SW3_PRESSED == RecvQue)
-	    	{
-	    		Button_IF_EnableInterrupt(SW3);
-	    		//
-	    		// send publish message
-	    		//
-	    		sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-	    				pub_topic_sw3,data_sw3,strlen((char*)data_sw3),QOS2,RETAIN);
-
-	    		struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
-
-	    		//Reinicio out1, de lo contrario se van acumulando los printfs
-
-	    		json_printf(&out1,"{ boton : %B}",true);
-
-	    		sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-	    				pub_topic_json,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
-
-
-	    		UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
-	    		UART_PRINT("Topic: %s\n\r",pub_topic_sw3);
-	    		UART_PRINT("Data: %s\n\r",data_sw3);
-
-	    	}
-	    	else if(READ_TEMP == RecvQue)
+	    	if(READ_TEMP == RecvQue)
 	    	{
 	    	    TMP006DrvGetTemp(&temp);
 	    	    struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
@@ -1332,11 +1041,6 @@ void ConnectWiFI(void *pvParameters)
     // Display Application Banner
     //
     DisplayBanner("MQTT_Client");
-   
-    //
-    // Register Push Button Handlers
-    //
-    Button_IF_Init(pushButtonInterruptHandler2,pushButtonInterruptHandler3);
     
     //Lanza el interprete de comandos...
     lRetVal = osi_TaskCreate(vUARTTask,
@@ -1481,50 +1185,7 @@ void ConnectWiFI(void *pvParameters)
     {
         osi_MsgQRead( &g_PBQueue, &RecvQue, OSI_WAIT_FOREVER);
         
-        if(PUSH_BUTTON_SW2_PRESSED == RecvQue)
-        {
-            Button_IF_EnableInterrupt(SW2);
-            //
-            // send publish message
-            //
-
-            struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));//Reinicio out1, de lo contrario se van acumulando los printfs
-
-            json_printf(&out1,"{ boton : %B}",false);
-            //sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-                 //   pub_topic_sw2,data_sw2,strlen((char*)data_sw2),QOS2,RETAIN);
-
-                    sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-                                        pub_topic_sw2,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
-            UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
-            UART_PRINT("Topic: %s\n\r",pub_topic_sw2);
-            UART_PRINT("Data: %s\n\r",data_sw2);
-        }
-        else if(PUSH_BUTTON_SW3_PRESSED == RecvQue)
-        {
-            Button_IF_EnableInterrupt(SW3);
-            //
-            // send publish message
-            //
-//            sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-//                    pub_topic_sw3,data_sw3,strlen((char*)data_sw3),QOS2,RETAIN);
-
-            struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
-
-            //Reinicio out1, de lo contrario se van acumulando los printfs
-
-            json_printf(&out1,"{ boton : %B}",true);
-
-
-                                sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-                                                    pub_topic_sw2,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
-
-
-            UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
-            UART_PRINT("Topic: %s\n\r",pub_topic_sw3);
-            UART_PRINT("Data: %s\n\r",data_sw3);
-        }
-        else if(READ_TEMP == RecvQue)
+        if(READ_TEMP == RecvQue)
         {
         	TMP006DrvGetTemp(&temp);
         	struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
