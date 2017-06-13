@@ -94,7 +94,7 @@
 #include <WS2812/SPI_uDMA_drv.h>
 #include <WS2812/WS2812_drv.h>
 
-#define STATION_MODE 1
+//#define STATION_MODE 1
 
 #define APPLICATION_VERSION 	"1.1.1"
 
@@ -108,7 +108,7 @@
 #define WILL_RETAIN             false
 
 /*Defining Broker IP address and port Number*/
-#define SERVER_ADDRESS          "192.168.1.12"
+#define SERVER_ADDRESS          "192.168.1.2"
 #define PORT_NUMBER             1883
 
 #define MAX_BROKER_CONN         1
@@ -619,6 +619,7 @@ void pushButtonInterruptHandler3()
     //
     osi_MsgQWrite(&g_PBQueue,&var,OSI_NO_WAIT);
 
+
 }
 
 //****************************************************************************
@@ -1084,40 +1085,41 @@ void MqttClientTask(void *pvParameters)
 	    		UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
 	    		UART_PRINT("Topic: %s\n\r",pub_topic_sw3);
 	    		UART_PRINT("Data: %s\n\r",data_sw3);
+
 	    	}
 	    	else if(READ_TEMP == RecvQue)
 	    	{
-	    		TMP006DrvGetTemp(&temp);
-	    		struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
+	    	    TMP006DrvGetTemp(&temp);
+	    	    struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
 
-	    		//Reinicio out1, de lo contrario se van acumulando los printfs
+	    	    //Reinicio out1, de lo contrario se van acumulando los printfs
 
-	    		json_printf(&out1,"{ Temperature : %f}",temp);
-
-
-	    		sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-	    				pub_topic_temp,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
+	    	    json_printf(&out1,"{ Temperature : %f }",roundf(temp));
 
 
-	    		UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
-	    		UART_PRINT("Topic: %s\n\r",pub_topic_temp);
+	    	    sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
+	    	            pub_topic_temp,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
+
+
+	    	    UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
+	    	    UART_PRINT("Topic: %s\n\r",pub_topic_temp);
 	    	}
 	    	else if(READ_ACC == RecvQue)
 	    	{
-	    		BMA222ReadNew(&accX, &accY, &accZ);
-	    		struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
+	    	    BMA222ReadNew(&accX, &accY, &accZ);
+	    	    struct json_out out1 = JSON_OUT_BUF(json_buffer, sizeof(json_buffer));
 
-	    		//Reinicio out1, de lo contrario se van acumulando los printfs
+	    	    //Reinicio out1, de lo contrario se van acumulando los printfs
 
-	    		json_printf(&out1,"{ AccX : %d AccY : %d AccZ : %d}", (int)accX, (int)accY, (int)accZ);
-
-
-	    		sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
-	    				pub_topic_acc,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
+	    	    json_printf(&out1,"{ AccX : %d, AccY: %d, AccZ : %d }", (int)accX, (int)accY, (int)accZ);
 
 
-	    		UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
-	    		UART_PRINT("Topic: %s\n\r",pub_topic_acc);
+	    	    sl_ExtLib_MqttClientSend((void*)local_con_conf[iCount].clt_ctx,
+	    	            pub_topic_acc,json_buffer,strlen((char*)json_buffer),QOS2,RETAIN);
+
+
+	    	    UART_PRINT("\n\r CC3200 Publishes the following message \n\r");
+	    	    UART_PRINT("Topic: %s\n\r",pub_topic_acc);
 	    	}
 	    	else if(BROKER_DISCONNECTION == RecvQue)
 	    	{
